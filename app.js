@@ -6,6 +6,7 @@ const logger = require('morgan');
 
 const authRouter = require('./routes/auth');
 const usersRouter = require('./routes/users');
+const pollRouter = require('./routes/poll');
 
 const app = express();
 
@@ -16,6 +17,7 @@ app.use(cookieParser());
 
 app.use('/auth', authRouter);
 app.use('/users', usersRouter);
+app.use('/poll', pollRouter);
 
 app.listen(process.env.PORT, (port) => {
     console.log("App start")

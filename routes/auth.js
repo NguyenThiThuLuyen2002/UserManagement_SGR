@@ -95,7 +95,8 @@ router.post('/login', async function (req, res, next) {
     if (comparePassword(user.password, user.salt, password)) {
         // If password is correct, generate JWT token
         const jwt = jsonwebtoken.sign(
-            {
+            { 
+                id: user.id,  
                 username: user.username,
                 email: user.email,
                 age: user.age,

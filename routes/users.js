@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-
+const jwt = require('jsonwebtoken')
 const knex = require('../database/knex');
 const { validationResult } = require('express-validator');
 function Validaterequest(req, res, next) {
@@ -19,11 +19,11 @@ function Validaterequest(req, res, next) {
     const { name, age, gender } = req.body;
   
     // Lấy token từ headers
-    const token = req.headers.authorization.split(' ')[1];
-  
+    const token = req.headers.authorization;
+    
     // Xác thực token để đảm bảo tính hợp lệ của người dùng
     const decodedToken = jwt.verify(token, process.env.JWT_SECRET);
-    
+    console.log(decodedToken);
     // Kiểm tra xem ID của người dùng được yêu cầu có khớp với thông tin trong token hay không
     if (decodedToken.id !== userId) {
       return res.status(401).json({ message: 'Unauthorized' });
@@ -101,6 +101,7 @@ router.get('/search_users', async (req, res) => {
     res.status(500).json({ message: 'An error occurred' });
   }
 });
+
 
 
 module.exports = router;
