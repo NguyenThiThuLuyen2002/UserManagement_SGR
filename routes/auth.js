@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const jsonwebtoken = require('jsonwebtoken')
 
+const crypto = require("crypto");
+const { mailService } = require('../Services/mail.service')
 
 const knex = require('../database/knex');
 const {
@@ -95,8 +97,8 @@ router.post('/login', async function (req, res, next) {
     if (comparePassword(user.password, user.salt, password)) {
         // If password is correct, generate JWT token
         const jwt = jsonwebtoken.sign(
-            { 
-                id: user.id,  
+            {
+                id: user.id,
                 username: user.username,
                 email: user.email,
                 age: user.age,
@@ -120,5 +122,152 @@ router.post('/login', async function (req, res, next) {
     }
 });
 
+// -----------------------------------------------------FORGOT PASSWORD--------------------------------
+router.post('/sendemail', async (req, res) => {
+    const { emailFrom, emailTo, emailSubject, emailText } = req.body;
+
+    try {
+        await mailService.sendEmail({ emailFrom, emailTo, emailSubject, emailText });
+        res.status(200).json({ message: 'Email sent successfully.' });
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ message: 'Failed to send email.' });
+    }
+});
+
+// router.post('/forgot-password', async (req, res) => {
+//     try {
+//         const email = req.body.email;
+//         if (isEmailExisted(email) === false)
+//             // If no: response
+//             return res.status(400).json({
+//                 message: 'email not found',
+//             });
+//         //tạo jwt
+
+//         const passwordResetToken = createRandomToken();
+
+//         const passwordResetExpiration = new Date(Date.now() + 10 * 60 * 1000);
+//         const updateStatus = await updateOne({
+//             db,
+//             query: 'update user set passwordResetToken = ?, passwordResetExpiration = ? where email = ?',
+//             params: [passwordResetToken, passwordResetExpiration, email],
+//         });
+
+//         if (updateStatus) {
+//             mailService.sendEmail({
+//                 emailFrom: 'admin@gmail.com',
+//                 emailTo: email,
+//                 emailSubject: 'Reset password',
+//                 emailText: 'Here is your reset password token: ' + passwordResetToken,
+//             });
+//             return res.status(200).json({
+//                 message: 'reset password email sent successfully',
+//             });
+//         }
+//         return res.status(400).json({
+//             message: "can't reset password!",
+//         });
+//     } catch (error) {
+//         return res.status(500).json({
+//             message: 'error',
+//         });
+//     }
+// });
+
+router.put('/forgot-password', async function (req, res) {
+    try {
+      const { email } = req.body;
+  
+      const user = await knex('users')
+        .select('*')
+        .where('email', email)
+        .first();
+  
+      if (!user) {
+        return res.status(400).json({
+          message: 'Email not found',
+        });
+      }
+  
+      const secretKey = crypto.randomBytes(32).toString('hex');
+      const passwordResetToken = crypto.createHash('sha256').update(secretKey).digest('hex');
+  
+      const passwordResetExpiration = new Date(Date.now() + 10 * 60 * 1000);
+      const updateStatus = await knex('users')
+        .where('email', email)
+        .update({
+          passwordResetToken: passwordResetToken,
+          passwordResetExpiration: passwordResetExpiration,
+        });
+  
+      if (updateStatus) {
+        mailService.sendEmail({
+          emailFrom: 'admin@gmail.com',
+          emailTo: email,
+          emailSubject: 'Reset password',
+          emailText: 'Here is your reset password token: ' + passwordResetToken,
+        });
+  
+        return res.status(200).json({
+          message: 'reset password email sent successfully',
+        });
+      }
+  
+      return res.status(400).json({
+        message: "can't reset password!",
+      });
+    } catch (error) {
+      return res.status(500).json({
+        message: 'error',
+      });
+    }
+  });
+  
+  router.put('/reset-password', async function (req, res) {
+    try {
+      const { email, passwordResetToken, newPassword } = req.body;
+      const user = await knex('users')
+        .select('*')
+        .where('email', email)
+        .where('passwordResetToken', passwordResetToken)
+        .where('passwordResetExpiration', '>=', new Date())
+        .first();
+  
+      if (!user) {
+        return res.status(400).json({
+          message: 'invalid token or token has expired',
+        });
+      }
+  
+      const { hashedPassword, salt } = hashPassword(newPassword);
+      const hashedPasswordString = hashedPassword.toString('base64');
+
+      const updateStatus = await knex('users')
+        .where('email', email)
+        .update({
+          password: hashedPasswordString,
+          salt: salt,
+          passwordResetToken: null,
+          passwordResetExpiration: null,
+        //   passwordLastResetDate: new Date(),
+        });
+  
+      if (updateStatus) {
+        return res.status(200).json({
+          message: 'reset password successfully',
+        });
+      }
+  
+      return res.status(400).json({
+        message: 'reset password failed',
+      });
+    } catch (error) {
+      return res.status(500).json({
+        message: 'error',
+      });
+    }
+  });
+  
 
 module.exports = router;
